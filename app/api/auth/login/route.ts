@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyPassword, createSessionToken, checkRateLimit, COOKIE_NAME } from '@/lib/server/auth';
+import { env } from '@/lib/server/env';
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,6 +21,13 @@ export async function POST(request: NextRequest) {
 
     if (!password || typeof password !== 'string') {
       return NextResponse.json({ error: 'Password is required' }, { status: 400 });
+    }
+
+    if (!env.APP_PASSWORD) {
+      return NextResponse.json(
+        { error: 'APP_PASSWORD is not configured in Vercel / environment variables.' },
+        { status: 500 }
+      );
     }
 
     // 2. Verify password with constant-time comparison
