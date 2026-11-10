@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Search, ChevronDown, ChevronUp, ExternalLink, X } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Search, ChevronDown, ChevronUp, ExternalLink, X, RefreshCw } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
 import { ScrollReveal } from '@/components/layout/scroll-reveal';
+import { WireStory, SourceStatusItem } from '@/lib/server/wire/feed';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -16,8 +17,7 @@ interface WireStats {
 }
 
 interface WireClientProps {
-  stats: WireStats;
-  isBreaking?: boolean;
+  initialStats?: WireStats;
 }
 
 type Region = 'ALL' | 'INDIA' | 'WORLD';
@@ -36,154 +36,20 @@ type Category =
   | 'Entertainment';
 
 // ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
-
-interface MockSource {
-  name: string;
-  status: 'ok' | 'slow' | 'failing';
-  lastFetchedMin: number;
-}
-
-const MOCK_SOURCES: MockSource[] = [
-  { name: 'The Hindu', status: 'ok', lastFetchedMin: 2 },
-  { name: 'NDTV', status: 'ok', lastFetchedMin: 3 },
-  { name: 'Indian Express', status: 'slow', lastFetchedMin: 11 },
-  { name: 'Times of India', status: 'ok', lastFetchedMin: 4 },
-  { name: 'Reuters', status: 'ok', lastFetchedMin: 1 },
-  { name: 'Al Jazeera', status: 'failing', lastFetchedMin: 38 },
-];
-
-const COVERED_OUTLETS = ['The Hindu', 'NDTV', 'Indian Express', 'Times of India', 'Reuters', 'Al Jazeera', 'Mint', 'Business Standard', 'The Wire', 'Scroll'];
-
-interface MockStory {
-  id: string;
-  region: 'INDIA' | 'WORLD';
-  category: Category;
-  dateline: string;
-  headline: string;
-  snippet: string;
-  coveredBy: number;
-  outlets: string[];
-  minsAgo: number;
-  isBreaking?: boolean;
-  url: string;
-}
-
-const MOCK_STORIES: MockStory[] = [
-  {
-    id: 's1',
-    region: 'INDIA',
-    category: 'Politics',
-    dateline: 'THE HINDU · INDIA · POLITICS',
-    headline:
-      'Parliament session: Winter session begins amid opposition walkout over prices and unemployment',
-    snippet:
-      'Opposition members staged a walkout on the opening day of the winter session, demanding a discussion on rising food prices and unemployment figures released last week.',
-    coveredBy: 8,
-    outlets: COVERED_OUTLETS.slice(0, 8),
-    minsAgo: 12,
-    url: 'https://news.google.com/search?q=Parliament+winter+session+opposition+walkout+India&hl=en-IN&gl=IN&ceid=IN:en',
-  },
-  {
-    id: 's2',
-    region: 'INDIA',
-    category: 'Business',
-    dateline: 'MINT · INDIA · BUSINESS',
-    headline:
-      'RBI holds repo rate at 6.5% for seventh consecutive time amid easing inflation',
-    snippet:
-      'The Monetary Policy Committee voted unanimously to keep the benchmark rate unchanged, citing moderating retail inflation and steady GDP growth projections for FY25.',
-    coveredBy: 12,
-    outlets: COVERED_OUTLETS.slice(0, 10),
-    minsAgo: 28,
-    isBreaking: true,
-    url: 'https://news.google.com/search?q=RBI+repo+rate+unchanged+MPC+India&hl=en-IN&gl=IN&ceid=IN:en',
-  },
-  {
-    id: 's3',
-    region: 'WORLD',
-    category: 'Tech',
-    dateline: 'REUTERS · WORLD · TECH',
-    headline:
-      'OpenAI announces GPT-5 Turbo with real-time reasoning; Microsoft expanding access to enterprise customers',
-    snippet:
-      "OpenAI's latest model demonstrates significant gains in multi-step reasoning tasks and reduces response latency by 40%, according to internal benchmarks released Tuesday.",
-    coveredBy: 6,
-    outlets: COVERED_OUTLETS.slice(0, 6),
-    minsAgo: 45,
-    url: 'https://news.google.com/search?q=OpenAI+GPT-5+Turbo+announcement&hl=en&gl=US&ceid=US:en',
-  },
-  {
-    id: 's4',
-    region: 'INDIA',
-    category: 'Sports',
-    dateline: 'NDTV SPORTS · INDIA · SPORTS',
-    headline:
-      'India vs Australia Test series: Rohit Sharma century puts India in strong position on Day 2',
-    snippet:
-      "Captain Rohit Sharma's unbeaten 108 guided India to 324/4 at stumps on Day 2, putting the hosts in a commanding position heading into tomorrow's play at the Gabba.",
-    coveredBy: 5,
-    outlets: COVERED_OUTLETS.slice(0, 5),
-    minsAgo: 67,
-    url: 'https://news.google.com/search?q=India+Australia+Test+Rohit+Sharma+century&hl=en-IN&gl=IN&ceid=IN:en',
-  },
-  {
-    id: 's5',
-    region: 'WORLD',
-    category: 'Politics',
-    dateline: 'AL JAZEERA · WORLD · POLITICS',
-    headline:
-      'UN Security Council emergency session called on Middle East ceasefire resolution',
-    snippet:
-      'The United States and France jointly requested the emergency session after a fresh escalation over the weekend. Envoys are set to present a revised ceasefire text this afternoon.',
-    coveredBy: 9,
-    outlets: COVERED_OUTLETS.slice(0, 9),
-    minsAgo: 93,
-    url: 'https://news.google.com/search?q=UN+Security+Council+Middle+East+ceasefire&hl=en&gl=US&ceid=US:en',
-  },
-  {
-    id: 's6',
-    region: 'INDIA',
-    category: 'Health',
-    dateline: 'THE WIRE · INDIA · HEALTH',
-    headline:
-      'WHO approves new malaria vaccine for high-burden countries; India among first recipients',
-    snippet:
-      "The R21/Matrix-M vaccine has shown 77% efficacy in Phase 3 trials. India's health ministry confirmed it will begin rollout in high-endemic districts by Q1 next year.",
-    coveredBy: 4,
-    outlets: COVERED_OUTLETS.slice(0, 4),
-    minsAgo: 142,
-    url: 'https://news.google.com/search?q=WHO+malaria+vaccine+R21+India&hl=en-IN&gl=IN&ceid=IN:en',
-  },
-];
-
-// ---------------------------------------------------------------------------
-// Small helpers
-// ---------------------------------------------------------------------------
-
-function formatMinsAgo(mins: number): string {
-  if (mins < 60) return `${mins} min ago`;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return m === 0 ? `${h}h ago` : `${h}h ${m}m ago`;
-}
-
-// ---------------------------------------------------------------------------
-// Status dot
+// Status dot for source coverage
 // ---------------------------------------------------------------------------
 
 function StatusDot({ status }: { status: 'ok' | 'slow' | 'failing' }) {
-  const color =
-    status === 'ok'
-      ? 'bg-pine'
-      : status === 'slow'
-        ? 'bg-orange'
-        : 'bg-alert';
+  const colorClass =
+    status === 'ok' ? 'bg-pine' : status === 'slow' ? 'bg-orange' : 'bg-alert';
+  const label =
+    status === 'ok' ? 'Healthy' : status === 'slow' ? 'Slow response' : 'Failing';
+
   return (
     <span
-      className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${color}`}
-      aria-hidden="true"
+      className={`inline-block w-2 h-2 rounded-full ${colorClass} flex-shrink-0`}
+      title={label}
+      aria-label={label}
     />
   );
 }
@@ -221,7 +87,7 @@ function Pill({
     <button
       type="button"
       onClick={onClick}
-      className={`px-3 py-1 font-mono text-xs uppercase tracking-wider rounded-[2px] transition-colors whitespace-nowrap ${
+      className={`px-3 py-1 font-mono text-xs uppercase tracking-wider rounded-[2px] transition-colors whitespace-nowrap cursor-pointer ${
         active
           ? 'bg-orange text-paper'
           : 'bg-transparent border border-rule text-ink-mute hover:border-ink-soft'
@@ -233,28 +99,105 @@ function Pill({
 }
 
 // ---------------------------------------------------------------------------
+// Helper: format relative time
+// ---------------------------------------------------------------------------
+
+function formatMinsAgo(mins: number): string {
+  if (mins < 1) return 'JUST NOW';
+  if (mins < 60) return `${mins} MIN AGO`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}H AGO`;
+  const days = Math.floor(hours / 24);
+  return `${days}D AGO`;
+}
+
+function timeAgoFromDate(dateStr: string): string {
+  try {
+    const d = new Date(dateStr).getTime();
+    if (isNaN(d)) return 'RECENT';
+    const mins = Math.max(0, Math.floor((Date.now() - d) / 60000));
+    return formatMinsAgo(mins);
+  } catch {
+    return 'RECENT';
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Coverage panel
 // ---------------------------------------------------------------------------
 
-function CoveragePanel() {
+function CoveragePanel({ sources }: { sources: SourceStatusItem[] }) {
+  const [filterRegion, setFilterRegion] = useState<'ALL' | 'INDIA' | 'WORLD'>('ALL');
+
+  const filtered = sources.filter((s) => {
+    if (filterRegion === 'ALL') return true;
+    return s.region === filterRegion;
+  });
+
+  const healthyCount = sources.filter((s) => s.status === 'ok').length;
+  const slowCount = sources.filter((s) => s.status === 'slow').length;
+  const failCount = sources.filter((s) => s.status === 'failing').length;
+
   return (
     <div className="border border-rule rounded-[2px] bg-paper p-4 mt-3">
-      <h2 className="font-mono text-xs uppercase tracking-widest text-ink-mute mb-3">
-        Source Coverage
-      </h2>
-      <ul className="space-y-2">
-        {MOCK_SOURCES.map((src) => (
-          <li key={src.name} className="flex items-center gap-2">
-            <StatusDot status={src.status} />
-            <span className="font-inter text-sm text-ink flex-1">{src.name}</span>
-            <span className="font-mono text-[11px] text-ink-mute">
-              {formatMinsAgo(src.lastFetchedMin)}
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+        <h2 className="font-mono text-xs uppercase tracking-widest text-ink font-semibold">
+          Source Coverage ({sources.length} Tracked)
+        </h2>
+        <div className="flex items-center gap-3 font-mono text-[11px] text-ink-mute">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-pine inline-block" /> {healthyCount} OK
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-orange inline-block" /> {slowCount} Slow
+          </span>
+          {failCount > 0 && (
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-alert inline-block" /> {failCount} Offline
             </span>
-          </li>
+          )}
+        </div>
+      </div>
+
+      <div className="flex gap-1 mb-3">
+        {(['ALL', 'INDIA', 'WORLD'] as const).map((r) => (
+          <button
+            key={r}
+            type="button"
+            onClick={() => setFilterRegion(r)}
+            className={`font-mono text-[10px] uppercase px-2 py-0.5 rounded-[2px] border ${
+              filterRegion === r
+                ? 'bg-ink text-paper border-ink'
+                : 'text-ink-mute border-rule hover:border-ink-soft'
+            }`}
+          >
+            {r}
+          </button>
         ))}
-      </ul>
+      </div>
+
+      <div className="max-h-72 overflow-y-auto space-y-1.5 pr-1">
+        {filtered.map((src) => (
+          <div
+            key={src.id}
+            className="flex items-center justify-between gap-2 py-1 px-1.5 hover:bg-bone-deep/30 rounded-[2px] transition-colors"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <StatusDot status={src.status} />
+              <span className="font-inter text-xs text-ink truncate">{src.name}</span>
+              <span className="font-mono text-[10px] text-ink-mute uppercase border border-rule px-1 rounded-[2px]">
+                {src.category}
+              </span>
+            </div>
+            <span className="font-mono text-[10px] text-ink-mute whitespace-nowrap">
+              {timeAgoFromDate(src.lastFetchedAt)}
+            </span>
+          </div>
+        ))}
+      </div>
+
       <p className="font-mono text-[10px] text-ink-mute mt-3 pt-3 border-t border-rule">
-        Full list available after setup.
+        Free multi-source wire · Verified live RSS &amp; wire endpoints
       </p>
     </div>
   );
@@ -264,7 +207,7 @@ function CoveragePanel() {
 // Story row
 // ---------------------------------------------------------------------------
 
-function StoryRow({ story }: { story: MockStory }) {
+function StoryRow({ story }: { story: WireStory }) {
   const [outletsOpen, setOutletsOpen] = useState(false);
 
   return (
@@ -274,16 +217,24 @@ function StoryRow({ story }: { story: MockStory }) {
     >
       {/* Dateline */}
       <p className="font-mono text-[11px] uppercase tracking-wider text-ink-mute mb-1">
-        {story.dateline} · {formatMinsAgo(story.minsAgo)}
+        {story.sourceName.toUpperCase()} · {story.region} · {story.category.toUpperCase()} ·{' '}
+        {timeAgoFromDate(story.publishedAt)}
       </p>
 
       {/* Headline */}
-      <h3 className="font-fraunces text-[20px] leading-7 text-ink mb-1.5">
-        {story.headline}
+      <h3 className="font-fraunces text-[20px] leading-7 text-ink mb-1.5 font-medium">
+        <a
+          href={story.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-orange transition-colors"
+        >
+          {story.headline}
+        </a>
       </h3>
 
       {/* Snippet */}
-      <p className="font-inter text-sm text-ink-soft mb-3 max-w-[72ch]">
+      <p className="font-inter text-sm text-ink-soft mb-3 max-w-[72ch] leading-relaxed">
         {story.snippet.length > 300 ? story.snippet.slice(0, 300) + '…' : story.snippet}
       </p>
 
@@ -292,10 +243,10 @@ function StoryRow({ story }: { story: MockStory }) {
         <button
           type="button"
           onClick={() => setOutletsOpen((o) => !o)}
-          className="font-mono text-xs text-orange hover:text-orange-deep transition-colors flex items-center gap-1"
+          className="font-mono text-xs text-orange hover:text-orange-deep transition-colors flex items-center gap-1 cursor-pointer"
           aria-expanded={outletsOpen}
         >
-          Covered by {story.coveredBy} outlets
+          Covered by {story.coveredBy} {story.coveredBy === 1 ? 'outlet' : 'outlets'}
           {outletsOpen ? (
             <ChevronUp className="w-3 h-3" />
           ) : (
@@ -315,10 +266,18 @@ function StoryRow({ story }: { story: MockStory }) {
 
       {/* Expanded outlets */}
       {outletsOpen && (
-        <ul className="mt-2 ml-2 space-y-0.5">
-          {story.outlets.map((outlet) => (
-            <li key={outlet} className="font-mono text-[11px] text-ink-mute">
-              — {outlet}
+        <ul className="mt-2.5 ml-2 p-2.5 bg-paper border border-rule rounded-[2px] space-y-1.5 max-w-lg">
+          {story.outlets.map((outlet, idx) => (
+            <li key={`${outlet.name}-${idx}`} className="font-mono text-[11px] text-ink-soft flex items-center justify-between gap-2">
+              <span>— {outlet.name}</span>
+              <a
+                href={outlet.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-orange hover:underline text-[10px] flex items-center gap-1"
+              >
+                Read ↗
+              </a>
             </li>
           ))}
         </ul>
@@ -334,15 +293,44 @@ function StoryRow({ story }: { story: MockStory }) {
 // Breaking band
 // ---------------------------------------------------------------------------
 
-function BreakingBand({ headline }: { headline: string }) {
+function BreakingBand({ story }: { story: WireStory }) {
   return (
     <div
-      className="bg-orange text-paper py-2 px-4 font-mono text-xs uppercase tracking-wider flex items-center gap-2"
+      className="bg-orange text-paper py-2.5 px-4 font-mono text-xs uppercase tracking-wider flex items-center justify-between gap-3 mb-6 rounded-[2px]"
       role="alert"
       aria-live="assertive"
     >
-      <span className="inline-block w-2 h-2 rounded-full bg-paper animate-pulse" aria-hidden="true" />
-      BREAKING — {headline} covered by 7 outlets
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="inline-block w-2 h-2 rounded-full bg-paper animate-pulse flex-shrink-0" aria-hidden="true" />
+        <span className="font-bold">BREAKING:</span>
+        <a
+          href={story.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-bone-deep truncate"
+        >
+          {story.headline}
+        </a>
+      </div>
+      <span className="text-[11px] whitespace-nowrap hidden sm:inline opacity-90">
+        Covered by {story.coveredBy} outlets
+      </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Skeleton row for loading
+// ---------------------------------------------------------------------------
+
+function WireStorySkeleton() {
+  return (
+    <div className="py-4 border-t border-rule animate-pulse">
+      <div className="h-3 w-48 bg-rule/50 rounded mb-2" />
+      <div className="h-6 w-3/4 bg-rule/60 rounded mb-2" />
+      <div className="h-4 w-full bg-rule/40 rounded mb-1" />
+      <div className="h-4 w-2/3 bg-rule/40 rounded mb-3" />
+      <div className="h-3 w-32 bg-rule/50 rounded" />
     </div>
   );
 }
@@ -351,7 +339,7 @@ function BreakingBand({ headline }: { headline: string }) {
 // Main client component
 // ---------------------------------------------------------------------------
 
-export function WireClient({ stats, isBreaking = false }: WireClientProps) {
+export function WireClient({ initialStats }: WireClientProps) {
   const [coverageOpen, setCoverageOpen] = useState(false);
   const [region, setRegion] = useState<Region>('ALL');
   const [category, setCategory] = useState<Category>('All');
@@ -359,17 +347,30 @@ export function WireClient({ stats, isBreaking = false }: WireClientProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>('24h');
   const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+
+  const [stories, setStories] = useState<WireStory[]>([]);
+  const [pendingNewStories, setPendingNewStories] = useState<WireStory[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [stats, setStats] = useState<WireStats>(
+    initialStats || { sourceCount: 60, storiesLast24h: 0, lastCheckedMin: 1 }
+  );
+  const [sourcesStatus, setSourcesStatus] = useState<SourceStatusItem[]>([]);
+  const [breakingStory, setBreakingStory] = useState<WireStory | null>(null);
+
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const NEW_STORIES_COUNT = 12;
 
-  // Tab title with unread count
+  // Debounce search query
   useEffect(() => {
-    document.title = `(${NEW_STORIES_COUNT}) Live Wire · Latest News`;
-    return () => {
-      document.title = 'Live Wire · Latest News';
-    };
-  }, []);
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -377,18 +378,152 @@ export function WireClient({ stats, isBreaking = false }: WireClientProps) {
     toastTimeout.current = setTimeout(() => setToastMsg(null), 3500);
   };
 
-  // Filtered stories
-  const visibleStories = MOCK_STORIES.filter((story) => {
-    if (region !== 'ALL' && story.region !== region) return false;
-    if (category !== 'All' && story.category !== category) return false;
-    if (
-      searchQuery.trim() &&
-      !story.headline.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      !story.snippet.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-      return false;
-    return true;
-  });
+  // Fetch stories function
+  const fetchFeed = useCallback(
+    async (isManualRefresh = false) => {
+      if (isManualRefresh) setIsRefreshing(true);
+      try {
+        const params = new URLSearchParams({
+          region,
+          category,
+          lang: language.toLowerCase(),
+          timeRange,
+          sort: sortOrder === 'most-covered' ? 'covered' : 'newest',
+          limit: '25',
+        });
+        if (debouncedQuery.trim()) {
+          params.set('q', debouncedQuery.trim());
+        }
+        if (isManualRefresh) {
+          params.set('refresh', 'true');
+        }
+
+        const res = await fetch(`/api/feed?${params.toString()}`);
+        if (!res.ok) throw new Error('Failed to load feed');
+        const data = await res.json();
+
+        setStories(data.stories || []);
+        setNextCursor(data.nextCursor || null);
+        if (data.stats) setStats(data.stats);
+        if (data.sourcesStatus) setSourcesStatus(data.sourcesStatus);
+        if (data.breakingStories && data.breakingStories.length > 0) {
+          setBreakingStory(data.breakingStories[0]);
+        } else {
+          setBreakingStory(null);
+        }
+        setPendingNewStories([]);
+      } catch (err: unknown) {
+        showToast('Failed to load news feed. Retrying...');
+      } finally {
+        setLoading(false);
+        if (isManualRefresh) setIsRefreshing(false);
+      }
+    },
+    [region, category, language, timeRange, sortOrder, debouncedQuery]
+  );
+
+  // Initial load and on filter changes
+  useEffect(() => {
+    setLoading(true);
+    fetchFeed();
+  }, [fetchFeed]);
+
+  // Load more older stories
+  const handleLoadMore = async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const params = new URLSearchParams({
+        region,
+        category,
+        lang: language.toLowerCase(),
+        timeRange,
+        sort: sortOrder === 'most-covered' ? 'covered' : 'newest',
+        cursor: nextCursor,
+        limit: '25',
+      });
+      if (debouncedQuery.trim()) {
+        params.set('q', debouncedQuery.trim());
+      }
+
+      const res = await fetch(`/api/feed?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to load more');
+      const data = await res.json();
+
+      setStories((prev) => [...prev, ...(data.stories || [])]);
+      setNextCursor(data.nextCursor || null);
+    } catch {
+      showToast('Could not load older stories');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // Poll for new stories every 45s
+  useEffect(() => {
+    const pollInterval = setInterval(async () => {
+      // Don't poll if document is hidden or while searching
+      if (document.hidden || debouncedQuery.trim()) return;
+      if (stories.length === 0) return;
+
+      try {
+        const latestTime = stories[0]?.publishedAt;
+        if (!latestTime) return;
+
+        const params = new URLSearchParams({
+          since: latestTime,
+          region,
+          category,
+          lang: language.toLowerCase(),
+          timeRange,
+          limit: '15',
+        });
+
+        const res = await fetch(`/api/feed?${params.toString()}`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const incoming = (data.stories || []).filter(
+          (newArt: WireStory) => !stories.some((s) => s.id === newArt.id)
+        );
+
+        if (incoming.length > 0) {
+          setPendingNewStories((prev) => {
+            const combined = [...incoming, ...prev];
+            // Deduplicate
+            const uniqueMap = new Map<string, WireStory>();
+            combined.forEach((item) => uniqueMap.set(item.id, item));
+            return Array.from(uniqueMap.values());
+          });
+        }
+      } catch {
+        // Silently ignore polling network errors
+      }
+    }, 45000);
+
+    return () => clearInterval(pollInterval);
+  }, [stories, region, category, language, timeRange, debouncedQuery]);
+
+  // Update tab title with unread count
+  useEffect(() => {
+    if (pendingNewStories.length > 0) {
+      document.title = `(${pendingNewStories.length}) Live Wire · Latest News`;
+    } else {
+      document.title = 'Live Wire · Latest News';
+    }
+    return () => {
+      document.title = 'NewsDesk · Editorial Intelligence';
+    };
+  }, [pendingNewStories.length]);
+
+  // Insert pending new stories when user clicks the sticky pill
+  const handleInsertNewStories = () => {
+    if (pendingNewStories.length === 0) return;
+    setStories((prev) => [...pendingNewStories, ...prev]);
+    showToast(`Inserted ${pendingNewStories.length} new stories at the top.`);
+    setPendingNewStories([]);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const categories: Category[] = [
     'All',
@@ -411,11 +546,13 @@ export function WireClient({ stats, isBreaking = false }: WireClientProps) {
         Skip to feed
       </a>
 
-      <AppShell>
-        {/* Breaking band (shown when isBreaking) */}
-        {isBreaking && (
-          <BreakingBand headline="RBI holds repo rate at 6.5% for seventh consecutive time" />
-        )}
+      <AppShell
+        lastUpdated={stats.lastCheckedMin <= 1 ? 'just now' : `${stats.lastCheckedMin} min ago`}
+        onRefresh={() => fetchFeed(true)}
+        isRefreshing={isRefreshing}
+      >
+        {/* Breaking band */}
+        {breakingStory && <BreakingBand story={breakingStory} />}
 
         {/* ---------------------------------------------------------------- */}
         {/* Wire Header                                                       */}
@@ -435,38 +572,51 @@ export function WireClient({ stats, isBreaking = false }: WireClientProps) {
               </p>
             </div>
 
-            {/* Coverage button */}
-            <button
-              type="button"
-              onClick={() => setCoverageOpen((o) => !o)}
-              className="font-mono text-xs uppercase tracking-wider px-3 py-1 border border-rule rounded-[2px] text-ink-mute hover:border-ink-soft transition-colors flex items-center gap-1.5 self-start mt-1"
-              aria-expanded={coverageOpen}
-              aria-controls="coverage-panel"
-            >
-              Coverage
-              {coverageOpen ? (
-                <ChevronUp className="w-3 h-3" />
-              ) : (
-                <ChevronDown className="w-3 h-3" />
-              )}
-            </button>
+            {/* Coverage button & Refresh button */}
+            <div className="flex items-center gap-2 self-start mt-1">
+              <button
+                type="button"
+                onClick={() => fetchFeed(true)}
+                disabled={isRefreshing}
+                className="font-mono text-xs uppercase tracking-wider px-2.5 py-1 border border-rule rounded-[2px] text-ink-mute hover:text-ink hover:border-ink-soft transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Fetch latest news from all sources now"
+              >
+                <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin text-orange' : ''}`} />
+                <span className="hidden sm:inline">{isRefreshing ? 'Checking...' : 'Refresh'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCoverageOpen((o) => !o)}
+                className="font-mono text-xs uppercase tracking-wider px-3 py-1 border border-rule rounded-[2px] text-ink-mute hover:border-ink-soft hover:text-ink transition-colors flex items-center gap-1.5 cursor-pointer"
+                aria-expanded={coverageOpen}
+                aria-controls="coverage-panel"
+              >
+                Coverage
+                {coverageOpen ? (
+                  <ChevronUp className="w-3 h-3" />
+                ) : (
+                  <ChevronDown className="w-3 h-3" />
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Stats bar */}
           <p className="font-mono text-[11px] text-ink-mute mt-2">
             {stats.sourceCount} sources tracked · {stats.storiesLast24h} stories in the last 24h ·{' '}
-            Last checked {stats.lastCheckedMin} min ago
+            Last checked {stats.lastCheckedMin <= 1 ? '1 min' : `${stats.lastCheckedMin} mins`} ago
           </p>
 
           {/* Disclaimer */}
           <p className="font-inter text-xs italic text-ink-mute mt-1.5">
-            Coverage is broad but not exhaustive — no aggregator sees every story.
+            Coverage is broad across free wires and official agencies — no single aggregator sees every story.
           </p>
 
           {/* Coverage panel */}
           {coverageOpen && (
             <div id="coverage-panel">
-              <CoveragePanel />
+              <CoveragePanel sources={sourcesStatus} />
             </div>
           )}
         </header>
@@ -554,7 +704,7 @@ export function WireClient({ stats, isBreaking = false }: WireClientProps) {
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search stories…"
+              placeholder="Search stories or outlets…"
               className="w-full bg-paper border border-rule rounded-[2px] pl-8 pr-16 py-1.5 font-mono text-xs text-ink placeholder:text-ink-mute focus:outline-none focus:border-orange transition-colors"
             />
             <span
@@ -575,17 +725,37 @@ export function WireClient({ stats, isBreaking = false }: WireClientProps) {
           className="focus:outline-none"
           tabIndex={-1}
         >
-          {visibleStories.length === 0 ? (
-            <div className="py-16 text-center">
-              <p className="font-fraunces text-xl text-ink-mute">No stories match your filters.</p>
-              <p className="font-mono text-xs text-ink-mute mt-2">
-                Try adjusting the region, category, or search query.
+          {loading ? (
+            <div className="divide-y divide-rule border-b border-rule">
+              <WireStorySkeleton />
+              <WireStorySkeleton />
+              <WireStorySkeleton />
+              <WireStorySkeleton />
+              <WireStorySkeleton />
+            </div>
+          ) : stories.length === 0 ? (
+            <div className="py-16 text-center border border-rule bg-paper rounded-[2px] p-8 my-6">
+              <p className="font-fraunces text-2xl text-ink mb-2">No recent stories found</p>
+              <p className="font-mono text-xs text-ink-mute max-w-md mx-auto">
+                No articles matched {region !== 'ALL' ? `${region} · ` : ''}{category} in the last {timeRange}. Try broadening your filters or clicking &quot;Refresh&quot; above.
               </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setRegion('ALL');
+                  setCategory('All');
+                  setTimeRange('24h');
+                  setSearchQuery('');
+                }}
+                className="mt-4 font-mono text-xs uppercase px-3 py-1.5 bg-orange text-paper rounded-[2px] hover:bg-orange-deep transition-colors cursor-pointer"
+              >
+                Reset All Filters
+              </button>
             </div>
           ) : (
             <div>
-              {visibleStories.map((story, i) => (
-                <ScrollReveal key={story.id} delayMs={i * 40}>
+              {stories.map((story, i) => (
+                <ScrollReveal key={story.id} delayMs={Math.min(i * 30, 300)}>
                   <StoryRow story={story} />
                 </ScrollReveal>
               ))}
@@ -593,13 +763,15 @@ export function WireClient({ stats, isBreaking = false }: WireClientProps) {
           )}
 
           {/* Load older stories */}
-          {visibleStories.length > 0 && (
-            <div className="mt-4 pb-8 border-t border-rule pt-4">
+          {!loading && nextCursor && (
+            <div className="mt-6 pb-8 border-t border-rule pt-4 text-center">
               <button
                 type="button"
-                className="font-mono text-xs text-ink-mute border border-rule px-4 py-2 rounded-[2px] hover:border-orange hover:text-orange transition-colors"
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="font-mono text-xs text-ink border border-rule px-5 py-2.5 rounded-[2px] hover:border-orange hover:text-orange transition-colors cursor-pointer disabled:opacity-50"
               >
-                Load older stories
+                {loadingMore ? 'Loading older stories…' : 'Load older stories'}
               </button>
             </div>
           )}
@@ -616,7 +788,7 @@ export function WireClient({ stats, isBreaking = false }: WireClientProps) {
         >
           {/* Toast */}
           {toastMsg && (
-            <div className="flex items-center gap-2 bg-ink text-paper font-mono text-xs px-3 py-2 rounded-[2px] shadow-md max-w-xs">
+            <div className="flex items-center gap-2 bg-ink text-paper font-mono text-xs px-3 py-2 rounded-[2px] shadow-md max-w-xs animate-in fade-in slide-in-from-bottom-2">
               <span>{toastMsg}</span>
               <button
                 type="button"
@@ -629,14 +801,16 @@ export function WireClient({ stats, isBreaking = false }: WireClientProps) {
             </div>
           )}
 
-          {/* Pill */}
-          <button
-            type="button"
-            onClick={() => showToast('Will scroll to new stories when live.')}
-            className="bg-orange text-paper font-fraunces text-sm px-4 py-2 rounded-[2px] shadow-md hover:bg-orange-deep transition-colors flex items-center gap-2"
-          >
-            ↑ {NEW_STORIES_COUNT} new stories
-          </button>
+          {/* Sticky New Stories Pill */}
+          {pendingNewStories.length > 0 && (
+            <button
+              type="button"
+              onClick={handleInsertNewStories}
+              className="bg-orange text-paper font-fraunces text-sm px-4 py-2.5 rounded-[2px] shadow-lg hover:bg-orange-deep transition-all flex items-center gap-2 cursor-pointer transform hover:scale-105 active:scale-95 animate-bounce"
+            >
+              ↑ {pendingNewStories.length} new {pendingNewStories.length === 1 ? 'story' : 'stories'}
+            </button>
+          )}
         </div>
       </AppShell>
     </>

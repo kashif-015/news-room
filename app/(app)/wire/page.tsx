@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { WireClient } from './wire-client';
+import { getWireFeed } from '@/lib/server/wire/feed';
 
 export const metadata: Metadata = {
   title: 'Live Wire · Latest News',
@@ -7,13 +8,23 @@ export const metadata: Metadata = {
     'Near-real-time news aggregator across India and World — 60+ sources tracked.',
 };
 
-// Mock stats for Step 1 (real data in Step 3)
-const MOCK_STATS = {
-  sourceCount: 63,
-  storiesLast24h: 847,
-  lastCheckedMin: 2,
-};
+export const dynamic = 'force-dynamic';
 
-export default function WirePage() {
-  return <WireClient stats={MOCK_STATS} />;
+export default async function WirePage() {
+  let initialStats = {
+    sourceCount: 60,
+    storiesLast24h: 0,
+    lastCheckedMin: 1,
+  };
+
+  try {
+    const feed = await getWireFeed();
+    if (feed && feed.stats) {
+      initialStats = feed.stats;
+    }
+  } catch {
+    // Graceful fallback for initial stats
+  }
+
+  return <WireClient initialStats={initialStats} />;
 }
