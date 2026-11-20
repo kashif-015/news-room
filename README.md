@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 📰 NewsDesk — Editorial Intelligence & Creation Desk
 
-## Getting Started
+**Research smarter. Create faster. Stay ahead of the news.**
 
-First, run the development server:
+NewsDesk is a private editorial intelligence and content creation platform built to streamline the news research and content production workflow.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+It brings news research, story discovery, content planning, headline writing, and creative resources together in one workspace — helping turn breaking stories and trending topics into engaging social media content.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+🔗 **Live Website:** [https://newsroombefore24hrs.vercel.app/](https://newsroombefore24hrs.vercel.app/)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## ✨ Overview
 
-## Learn More
+NewsDesk is designed to simplify the entire workflow of running a digital news platform.
 
-To learn more about Next.js, take a look at the following resources:
+Instead of switching between multiple websites and tools for researching stories, collecting references, finding relevant media, and preparing content, NewsDesk brings these activities together in one centralized editorial workspace.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The platform is designed around a simple idea:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+> Research better. Find the context. Create meaningful news content.
 
-## Deploy on Vercel
+## 🚀 Key Features
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **News Research:** Explore news stories and gather information for editorial coverage.
+- **Content Creation:** Prepare engaging headlines, subheadings, and social media captions.
+- **Related News:** Discover additional coverage and context around a particular story.
+- **Source Collection:** Save useful article references and X (Twitter) post URLs for future research.
+- **Creative Resources:** Access visual content and inspiration for social media posts.
+- **Trending Content:** Explore internet trends, tweets, and memes for relevant content ideas.
+- **Centralized Workspace:** Keep research and content-related activities organized in one place.
+- **Private Access:** A protected, single-user environment designed for personal editorial workflows.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🎯 Built For
+
+- Digital news publishers
+- Social media news platforms
+- Social media editors
+- Content researchers
+- Independent journalists
+- Digital content creators
+
+## 🛠️ Technology
+
+The project is built around a modern web development workflow.
+
+- **Framework:** Next.js
+- **Deployment:** Vercel
+- **Research & Content APIs:** External news and content services
+- **AI Integration:** AI-powered content assistance
+
+*The exact integrations and implementation details may vary depending on the project configuration.*
+
+## 🔐 Access
+
+NewsDesk operates as a private, password-protected editorial workspace.
+
+It is not intended to be a publicly accessible news-reading website. Access is restricted to its authorized user.
+
+## 🌐 Live Demo
+
+[**NewsDesk — Editorial Intelligence & Creation Desk**](https://newsroombefore24hrs.vercel.app/)
+
+## 📌 Project Information
+
+| Detail       | Information                      |
+| ------------ | -------------------------------- |
+| Project Name | NewsDesk                         |
+| Category     | Editorial Intelligence Platform  |
+| Primary Use  | News Research & Content Creation |
+| Deployment   | Vercel                           |
+| Access       | Private                          |
+
+## 👨‍💻 Developer
+
+Designed and developed as an independent project to improve the research and content production workflow of a modern digital news platform.
+
+---
+
+**NewsDesk — Everything you need to research, organize, and create, in one editorial workspace.**
+
+Remove the Before24Hrs referenceRename the live URL section
