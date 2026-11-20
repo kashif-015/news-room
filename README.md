@@ -79,4 +79,3 @@ Designed and developed as an independent project to improve the research and con
 
 **NewsDesk — Everything you need to research, organize, and create, in one editorial workspace.**
 
-Remove the Before24Hrs referenceRename the live URL section
