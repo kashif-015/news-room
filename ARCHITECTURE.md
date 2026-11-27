@@ -81,7 +81,7 @@ APP_URL=                   # e.g. http://localhost:3000 or the Vercel URL
 
 Because all Supabase access goes through the server with the service role key, also enable **Row Level Security with no public policies** on every table, so the database stays closed even if a key leaks elsewhere.
 
-GitHub Actions needs its own repository secrets: `CRON_SECRET` and `APP_URL`.
+GitHub Actions needs the `CRON_SECRET` repository secret. `APP_URL` can be set as a repository secret to override the default production URL (`https://newsroombefore24hrs.vercel.app`).
 
 ## 4. Folder structure
 
@@ -295,10 +295,20 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
+    env:
+      APP_URL: ${{ secrets.APP_URL || 'https://newsroombefore24hrs.vercel.app' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
     steps:
+      - name: Validate ingestion configuration
+        run: |
+          : "${CRON_SECRET:?CRON_SECRET GitHub Actions secret is required}"
+          if [[ ! "$APP_URL" =~ ^https?://[^/]+/?$ ]]; then
+            echo "::error::APP_URL must be an absolute HTTP(S) URL"
+            exit 1
+          fi
       - run: >
           curl -fsS -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
-          "${{ secrets.APP_URL }}/api/cron/ingest"
+          "${APP_URL%/}/api/cron/ingest"
 ```
 
 Steps inside the endpoint:
